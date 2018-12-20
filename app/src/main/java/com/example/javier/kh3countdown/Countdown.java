@@ -6,6 +6,7 @@ import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.support.design.widget.FloatingActionButton;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.view.Window;
@@ -28,7 +29,7 @@ public class Countdown extends AppCompatActivity {
 
     private RelativeLayout layout;
     private TextView txCountdown;
-    private static Button btnMute, btn;
+    private static FloatingActionButton btnMute, btnSongs;
 
     private static final DateTime RELEASE_DATE = new DateTime(2019, 1, 29, 0, 0);
     private long days;
@@ -40,9 +41,9 @@ public class Countdown extends AppCompatActivity {
     private boolean muted = false;
     private static final String songsPath = "android.resource://com.example.javier.kh3countdown/raw/";
     private ArrayList<String> songs = new ArrayList<>();
-    private Random songSelector = new Random();
+    private Random songSelector;
 
-    private HideButton hbTask;
+    private HideButtons hbTask;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,14 +56,15 @@ public class Countdown extends AppCompatActivity {
         layout = findViewById(R.id.layout);
         txCountdown = findViewById(R.id.txCountdown);
         btnMute = findViewById(R.id.btnMute);
-        btn = findViewById(R.id.button);
+        btnSongs = findViewById(R.id.btnSongs);
 
         layout.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (btnMute.getVisibility() != View.VISIBLE) {
                     btnMute.setVisibility(View.VISIBLE);
-                    hbTask = (HideButton) new HideButton().execute();
+                    btnSongs.setVisibility(View.VISIBLE);
+                    hbTask = (HideButtons) new HideButtons().execute();
                 }
             }
         });
@@ -70,43 +72,31 @@ public class Countdown extends AppCompatActivity {
         btnMute.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                hbTask = (HideButton) new HideButton().execute();
                 muteUnmute();
             }
         });
 
-        btn.setOnClickListener(new View.OnClickListener() {
+        btnSongs.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                AlertDialog.Builder builderSingle = new AlertDialog.Builder(Countdown.this);
-                builderSingle.setTitle("Choose another song to play");
-
-                final ArrayAdapter<String> arrayAdapter = new ArrayAdapter<String>(Countdown.this,
-                        android.R.layout.select_dialog_singlechoice, songs);
-
-                builderSingle.setNegativeButton("cancel", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        dialog.dismiss();
-                    }
-                });
-
-                builderSingle.setAdapter(arrayAdapter, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        mediaPlayer.stop();
-                        mediaPlayer.release();
-                        mediaPlayerSettings(which);
-                        dialog.dismiss();
-                    }
-                });
-                builderSingle.show();
+                displaySongs();
             }
         });
 
-        // Comparar por si ya ha salido ;)
-        Interval interval = new Interval(new Instant(), RELEASE_DATE);
+        try {
+            Interval interval = new Interval(new Instant(), RELEASE_DATE);
+            initCountDown(interval);
+        } catch (IllegalArgumentException e) { // Probably the game is already out.
+            e.printStackTrace();
+            txCountdown.setText("The magic is back.");
+        }
 
+        getSongs();
+        hbTask = (HideButtons) new HideButtons().execute();
+
+    }
+
+    private void initCountDown(Interval interval) {
         new CountDownTimer(interval.toDurationMillis(), 1000) {
 
             public void onTick(long millisUntilFinished) {
@@ -117,15 +107,12 @@ public class Countdown extends AppCompatActivity {
                 txCountdown.setText("The magic is back.");
             }
         }.start();
-
-        getSongs();
-        hbTask = (HideButton) new HideButton().execute();
-
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        songSelector = new Random(System.currentTimeMillis());
         mediaPlayerSettings();
         if (muted)
             mediaPlayer.setVolume(0, 0);
@@ -137,6 +124,28 @@ public class Countdown extends AppCompatActivity {
         mediaPlayer.stop();
         mediaPlayer.release();
     }
+
+    private void setTime(long millisUntilFinished) {
+
+        long leftMills;
+
+        days = millisUntilFinished / 86400000;
+        leftMills = millisUntilFinished % 86400000;
+
+        hours = leftMills / 3600000;
+        leftMills %= 3600000;
+
+        minutes = leftMills / 60000;
+        leftMills %= 60000;
+
+        seconds = leftMills / 1000;
+
+        txCountdown.setText((days > 0 ? days + "d " : "") +
+                (hours > 0 ? hours + "h " : "") +
+                (minutes > 0 ? minutes + "m " : "") +
+                (seconds > 0 ? seconds + "s " : ""));
+    }
+
 
     private void mediaPlayerSettings() {
         mediaPlayer = MediaPlayer.create(getApplicationContext(), songUri(-1));
@@ -174,6 +183,12 @@ public class Countdown extends AppCompatActivity {
         });
     }
 
+    private void changeSong(int which) {
+        mediaPlayer.stop();
+        mediaPlayer.release();
+        mediaPlayerSettings(which);
+    }
+
     private Uri songUri(int pos) {
         if (pos == -1)
             return Uri.parse(songsPath + songs.get(songSelector.nextInt(songs.size())));
@@ -181,38 +196,19 @@ public class Countdown extends AppCompatActivity {
             return Uri.parse(songsPath + songs.get(pos));
     }
 
-    private void setTime(long millisUntilFinished) {
-
-        long leftMills;
-
-        days = millisUntilFinished / 86400000;
-        leftMills = millisUntilFinished % 86400000;
-
-        hours = leftMills / 3600000;
-        leftMills %= 3600000;
-
-        minutes = leftMills / 60000;
-        leftMills %= 60000;
-
-        seconds = leftMills / 1000;
-
-        txCountdown.setText((days > 0 ? days + "d " : "") +
-                (hours > 0 ? hours + "h " : "") +
-                (minutes > 0 ? minutes + "m " : "") +
-                (seconds > 0 ? seconds + "s " : ""));
-    }
-
     private void muteUnmute() {
 
         if (!muted) {
             mediaPlayer.setVolume(0, 0);
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            btnMute.setImageResource(R.drawable.speaker);
         } else {
             if (mediaPlayer.isPlaying())
                 mediaPlayer.setVolume(1, 1);
             else
                 mediaPlayerSettings();
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            btnMute.setImageResource(R.drawable.mute);
         }
         muted = !muted;
 
@@ -222,10 +218,39 @@ public class Countdown extends AppCompatActivity {
         btnMute.setVisibility(View.GONE);
     }
 
+    public static void hideSongs() {
+        btnSongs.setVisibility(View.GONE);
+    }
+
+    private void displaySongs() {
+        AlertDialog.Builder builderSingle = new AlertDialog.Builder(Countdown.this);
+        builderSingle.setTitle("Choose another song to play");
+
+        final ArrayAdapter<String> arrayAdapter = new ArrayAdapter<String>(Countdown.this,
+                android.R.layout.select_dialog_singlechoice, songs);
+
+        builderSingle.setNegativeButton("cancel", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+            }
+        });
+
+        builderSingle.setAdapter(arrayAdapter, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                changeSong(which);
+                dialog.dismiss();
+            }
+        });
+        builderSingle.show();
+    }
+
     public void getSongs() {
         Field[] fields = R.raw.class.getFields();
         for (int count = 0; count < fields.length; count++) {
             songs.add(fields[count].getName());
         }
     }
+
 }
